@@ -1,0 +1,192 @@
+{
+  "name": "pytest-html-reporter-vscode",
+  "displayName": "Pytest HTML Reporter",
+  "description": "View pytest-html-reporter test results in the VS Code sidebar, with failure navigation, error previews, build history and flaky-test detection.",
+  "version": "0.1.0",
+  "publisher": "prashanth-sams",
+  "license": "MIT",
+  "icon": "resources/icon.png",
+  "categories": [
+    "Testing"
+  ],
+  "keywords": [
+    "pytest",
+    "pytest-html-reporter",
+    "python",
+    "test report",
+    "test results",
+    "python testing",
+    "flaky tests",
+    "qa",
+    "automation"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/prashanth-sams/pytest-html-reporter.git"
+  },
+  "bugs": {
+    "url": "https://github.com/prashanth-sams/pytest-html-reporter/issues"
+  },
+  "homepage": "https://github.com/prashanth-sams/pytest-html-reporter",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "pytestHtmlReporter",
+          "title": "Pytest HTML Reporter",
+          "icon": "resources/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "pytestHtmlReporter": [
+        {
+          "id": "pytestHtmlReporter.sidebar",
+          "name": "Test Results",
+          "type": "webview"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "pytestHtmlReporter.refresh",
+        "title": "Refresh Test Results",
+        "category": "Pytest HTML Reporter",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "pytestHtmlReporter.configureReportPath",
+        "title": "Configure Report Path",
+        "category": "Pytest HTML Reporter",
+        "icon": "$(gear)"
+      },
+      {
+        "command": "pytestHtmlReporter.openHtmlReport",
+        "title": "Open Full HTML Report",
+        "category": "Pytest HTML Reporter",
+        "icon": "$(browser)"
+      },
+      {
+        "command": "pytestHtmlReporter.jumpToTest",
+        "title": "Jump To Test",
+        "category": "Pytest HTML Reporter"
+      },
+      {
+        "command": "pytestHtmlReporter.focusSidebar",
+        "title": "Focus Test Results View",
+        "category": "Pytest HTML Reporter"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "pytestHtmlReporter.refresh",
+          "when": "view == pytestHtmlReporter.sidebar",
+          "group": "navigation@1"
+        },
+        {
+          "command": "pytestHtmlReporter.openHtmlReport",
+          "when": "view == pytestHtmlReporter.sidebar",
+          "group": "navigation@2"
+        },
+        {
+          "command": "pytestHtmlReporter.configureReportPath",
+          "when": "view == pytestHtmlReporter.sidebar",
+          "group": "navigation@3"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "pytestHtmlReporter.jumpToTest",
+          "when": "false"
+        },
+        {
+          "command": "pytestHtmlReporter.focusSidebar",
+          "when": "false"
+        },
+        {
+          "command": "pytestHtmlReporter.refresh",
+          "when": "workspaceFolderCount > 0"
+        },
+        {
+          "command": "pytestHtmlReporter.configureReportPath",
+          "when": "workspaceFolderCount > 0"
+        },
+        {
+          "command": "pytestHtmlReporter.openHtmlReport",
+          "when": "workspaceFolderCount > 0"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Pytest HTML Reporter",
+      "properties": {
+        "pytestHtmlReporter.reportJsonPaths": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "markdownDescription": "Paths to `output.json` files written by pytest-html-reporter. Leave empty to detect them automatically.",
+          "scope": "resource"
+        },
+        "pytestHtmlReporter.autoRefresh": {
+          "type": "boolean",
+          "default": true,
+          "description": "Reload the sidebar when the report file changes on disk.",
+          "scope": "resource"
+        },
+        "pytestHtmlReporter.showErrorSnippets": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show a truncated error message on each failing test.",
+          "scope": "resource"
+        },
+        "pytestHtmlReporter.maxErrorLength": {
+          "type": "number",
+          "default": 150,
+          "minimum": 50,
+          "maximum": 500,
+          "description": "Maximum length of the error snippet shown on a failing test.",
+          "scope": "resource"
+        },
+        "pytestHtmlReporter.history.enabled": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Read past builds from `archive/*.json` to flag flaky and consistently broken tests.",
+          "scope": "resource"
+        },
+        "pytestHtmlReporter.history.maxBuilds": {
+          "type": "number",
+          "default": 25,
+          "minimum": 2,
+          "maximum": 200,
+          "markdownDescription": "How many recent builds to read from `archive/` when working out flakiness.",
+          "scope": "resource"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "node esbuild.js",
+    "watch": "node esbuild.js --watch",
+    "vscode:prepublish": "node esbuild.js --production",
+    "compile-tests": "tsc -p . --outDir out",
+    "test": "npm run compile-tests && node --test \"out/tests/**/*.test.js\"",
+    "lint": "tsc --noEmit",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.1",
+    "@types/vscode": "1.90",
+    "esbuild": "^0.28.2",
+    "typescript": "^7.0.2"
+  }
+}
