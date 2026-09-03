@@ -11,6 +11,8 @@
   ],
   "keywords": [
     "pytest",
+    "pytest html",
+    "pytest report",
     "pytest-html-reporter",
     "python",
     "test report",
