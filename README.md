@@ -15,8 +15,9 @@ build history the plugin already keeps.
 - **Flaky vs broken.** Past builds in `archive/` are read to tell a test that
   *sometimes* fails from one that has never passed. Stable tests get no badge,
   so the ones that do mean something.
-- **Trend sparkline.** The last dozen outcomes for a failing test, oldest to
-  newest.
+- **Charts.** A pass-rate ring, a proportional status bar, and failures per
+  build across the recent archive — the trend no single report can show.
+- **Per-test trend.** The last dozen outcomes for a flaky test, oldest to newest.
 - **Full report, in the editor.** Open the generated HTML report — Steps,
   Attachments, Analytics, Coverage, screenshots — in a tab instead of a browser.
 - **Live refresh.** The sidebar reloads when a run finishes.
@@ -64,6 +65,27 @@ Alongside it the extension expects the layout the plugin writes:
 | `pytestHtmlReporter.maxErrorLength` | `150` | Snippet length, 50–500. |
 | `pytestHtmlReporter.history.enabled` | `true` | Read `archive/*.json` for flaky/broken verdicts. |
 | `pytestHtmlReporter.history.maxBuilds` | `25` | Recent builds to consider, 2–200. |
+
+## Previewing the sidebar
+
+Launching the Extension Development Host to check a colour is a slow loop, so
+the sidebar can be rendered straight to HTML:
+
+```bash
+npm run preview                # the bundled fixture, with failures
+npm run preview -- all-passed  # a green run
+npm run preview -- no-config   # nothing found yet
+npm run preview -- error       # a corrupt report
+```
+
+It writes a dark and a light file into `.preview/`; open either in a browser.
+The real VS Code theme variables are stubbed in, so what you see is what the
+webview renders. Point it at one of your own runs with
+`PREVIEW_REPORT=/path/to/output.json npm run preview` — the history charts then
+read that report's own `archive/` too.
+
+For the full thing, press <kbd>F5</kbd> for an Extension Development Host and
+open a folder containing a report.
 
 ## Known limitation: locating a test
 
