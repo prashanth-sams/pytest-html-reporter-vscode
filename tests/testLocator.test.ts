@@ -30,6 +30,36 @@ function realSource(relativePath: string): string {
   return readFileSync(join(PLUGIN_REPO, relativePath), 'utf8');
 }
 
+/**
+ * Where a `def` really is, found by a deliberately different method.
+ *
+ * The plugin checkout is a live repo: its tests get edited, and every one of
+ * these line numbers shifts when they do. Hard-coding them meant a test here
+ * went red because a file over there gained twelve lines, which says nothing
+ * about the locator.
+ *
+ * So the expectation is derived instead — by a plain trimmed-prefix scan rather
+ * than by the regex the locator uses, so the two are genuinely independent and
+ * agreeing still means something. The structural claims each test makes
+ * (indentation, async, ordering, ambiguity) are the real assertions; this only
+ * anchors them to the right line.
+ */
+function defLineByScan(source: string, name: string, occurrence = 0): number {
+  const wanted = [`def ${name}(`, `async def ${name}(`];
+  let seen = 0;
+  const lines = source.split(/\r\n|\r|\n/);
+  for (let i = 0; i < lines.length; i++) {
+    const trimmed = lines[i].trim();
+    if (wanted.some((w) => trimmed.startsWith(w))) {
+      if (seen === occurrence) {
+        return i;
+      }
+      seen++;
+    }
+  }
+  throw new Error(`no def ${name} in the fixture — the plugin checkout may have moved on`);
+}
+
 /** Skip rather than fail when the plugin checkout is not beside the extension. */
 const realFileTest = HAVE_REAL_SOURCES ? it : it.skip;
 
@@ -183,7 +213,7 @@ describe('real pytest-html-reporter sources', () => {
   realFileTest('finds a module-level def at the top of the file', () => {
     const result = locateTest(realSource('tests/functional/test_simple.py'), 'test_pass');
     assert.ok(result);
-    assert.equal(result.match.line, 0); // file line 1
+    assert.equal(result.match.line, defLineByScan(realSource('tests/functional/test_simple.py'), 'test_pass'));
     assert.equal(result.ambiguous, false);
   });
 
@@ -193,7 +223,7 @@ describe('real pytest-html-reporter sources', () => {
     // exactly the lossy case the locator exists for.
     const result = locateTest(realSource('tests/functional/test_playwright.py'), 'test_heading[chromium]');
     assert.ok(result);
-    assert.equal(result.match.line, 27); // file line 28
+    assert.equal(result.match.line, defLineByScan(realSource('tests/functional/test_playwright.py'), 'test_heading'));
     assert.equal(result.match.indent, 4);
     assert.equal(result.ambiguous, false);
     assert.match(result.match.lineText, /def test_heading\(self, page\):/);
@@ -202,7 +232,10 @@ describe('real pytest-html-reporter sources', () => {
   realFileTest('does not confuse test_heading with test_heading_mismatch', () => {
     const source = realSource('tests/functional/test_playwright.py');
     assert.equal(findFunctionDefinitions(source, 'test_heading').length, 1);
-    assert.equal(findFunctionDefinitions(source, 'test_heading_mismatch')[0].line, 30);
+    assert.equal(
+      findFunctionDefinitions(source, 'test_heading_mismatch')[0].line,
+      defLineByScan(source, 'test_heading_mismatch')
+    );
   });
 
   realFileTest('finds a decorated parametrized test', () => {
@@ -210,14 +243,21 @@ describe('real pytest-html-reporter sources', () => {
     // def on line 5. Archive name is test_fixture_pass[1-2].
     const result = locateTest(realSource('tests/functional/test_parameterize.py'), 'test_fixture_pass[1-2]');
     assert.ok(result);
-    assert.equal(result.match.line, 4);
+    assert.equal(
+      result.match.line,
+      defLineByScan(realSource('tests/functional/test_parameterize.py'), 'test_fixture_pass')
+    );
     assert.equal(result.match.indent, 0);
   });
 
   realFileTest('finds a test decorated with pytest.mark.xfail', () => {
     const result = locateTest(realSource('tests/functional/test_skip_xfail_xpass.py'), 'test_xpass');
     assert.ok(result);
-    assert.equal(result.match.line, 13); // file line 14, decorator on 13
+    // The decorator sits above; the locator must land on the def, not on it.
+    assert.equal(
+      result.match.line,
+      defLineByScan(realSource('tests/functional/test_skip_xfail_xpass.py'), 'test_xpass')
+    );
   });
 
   realFileTest('finds an async def nested in a class, among same-named siblings', () => {
@@ -230,11 +270,16 @@ describe('real pytest-html-reporter sources', () => {
       'screenshot'
     );
     assert.ok(found.length >= 3, 'the fixture file defines screenshot several times');
-    assert.equal(found[0].line, 38, 'first candidate is the topmost def, file line 39');
+    const source = realSource('tests/unit/test_auto_screenshots.py');
+    assert.equal(
+      found[0].line,
+      defLineByScan(source, 'screenshot', 0),
+      'first candidate is the topmost def'
+    );
 
     const asyncDef = found.find((d) => d.isAsync);
     assert.ok(asyncDef, 'one of them is an async def');
-    assert.equal(asyncDef.line, 66); // file line 67
+    assert.equal(asyncDef.line, defLineByScan(source, 'screenshot', 2));
     assert.equal(asyncDef.indent, 4);
   });
 
@@ -254,7 +299,13 @@ describe('real pytest-html-reporter sources', () => {
       'test_only_a_failure_counts_as_a_failure'
     );
     assert.ok(result);
-    assert.equal(result.match.line, 91); // file line 92
+    assert.equal(
+      result.match.line,
+      defLineByScan(
+        realSource('tests/unit/test_analytics.py'),
+        'test_only_a_failure_counts_as_a_failure'
+      )
+    );
   });
 
   realFileTest('reports the real duplicate-name case as ambiguous', () => {

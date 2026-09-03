@@ -2,7 +2,7 @@
   "name": "pytest-html-reporter-vscode",
   "displayName": "Pytest HTML Reporter",
   "description": "View pytest-html-reporter test results in the VS Code sidebar, with failure navigation, error previews, build history and flaky-test detection.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "prashanth-sams",
   "license": "MIT",
   "icon": "resources/icon.png",
@@ -11,6 +11,8 @@
   ],
   "keywords": [
     "pytest",
+    "pytest html",
+    "pytest report",
     "pytest-html-reporter",
     "python",
     "test report",

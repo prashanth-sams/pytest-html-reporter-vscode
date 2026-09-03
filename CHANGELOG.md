@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.1] — 2026-09-03
+
+- New icon, matching the reporter's own bar-chart mark. The activity bar
+  version is drawn separately with the bars spaced apart: VS Code renders that
+  icon as a monochrome mask, so the original's touching bars would have
+  collapsed into a single silhouette.
+
 ## [0.1.0] — 2026-09-02
 
 First release.
