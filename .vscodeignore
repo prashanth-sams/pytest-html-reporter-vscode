@@ -7,6 +7,8 @@ node_modules/**
 .gitignore
 esbuild.js
 tsconfig.json
+tools/**
+.preview/**
 package-lock.json
 **/*.map
 **/*.ts

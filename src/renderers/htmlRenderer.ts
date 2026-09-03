@@ -13,6 +13,7 @@
  */
 
 import {
+  BuildDigest,
   FlakeVerdict,
   ReportData,
   TestOutcome,
@@ -36,6 +37,8 @@ export interface RenderContext {
   flake?: Map<string, FlakeVerdict>;
   trends?: Map<string, TestOutcome[]>;
   historyBuildCount: number;
+  /** Oldest-first window of past builds, for the history chart. */
+  builds?: BuildDigest[];
 }
 
 const ICON_EMPTY =
@@ -157,7 +160,7 @@ export class HtmlRenderer {
   static renderAllPassed(data: ReportData, ctx: RenderContext): string {
     return HtmlRenderer.wrapHtml(`
       ${HtmlRenderer.renderSwitcher(ctx)}
-      ${HtmlRenderer.renderSummarySection(data.summary, data.date)}
+      ${HtmlRenderer.renderSummarySection(data.summary, data.date, ctx)}
       <div class="center-content" style="padding-top: 12px;">
         <div class="success-icon" style="color: var(--phr-pass)">${ICON_PASS}</div>
         <h3 class="success-title">All tests passed</h3>
@@ -192,7 +195,7 @@ export class HtmlRenderer {
     const failed = data.failedTests.length;
     return HtmlRenderer.wrapHtml(`
       ${HtmlRenderer.renderSwitcher(ctx)}
-      ${HtmlRenderer.renderSummarySection(data.summary, data.date)}
+      ${HtmlRenderer.renderSummarySection(data.summary, data.date, ctx)}
       <div class="section-title">
         <span>${failed} failing ${failed === 1 ? 'test' : 'tests'}</span>
         ${ctx.historyBuildCount > 1
@@ -203,11 +206,23 @@ export class HtmlRenderer {
       ${HtmlRenderer.renderFooter(ctx)}`);
   }
 
-  static renderSummarySection(summary: TestSummary, date?: string): string {
-    const chip = (cls: string, value: number, label: string, always = false): string =>
-      value > 0 || always
-        ? `<div class="stat-item ${cls}"><span class="stat-value">${value}</span><span class="stat-label">${label}</span></div>`
-        : '';
+  /**
+   * The headline: a pass-rate ring, the counts, and where the run sits against
+   * the builds before it.
+   *
+   * The counts used to sit on one uniform badge colour with only the number
+   * tinted, which made `1 skipped` grey-on-grey and left xPASS and xFAIL with
+   * no colour at all. Each figure now carries its own tinted plate, so the
+   * status is legible from the shape of the chip rather than from reading it.
+   */
+  static renderSummarySection(
+    summary: TestSummary,
+    date?: string,
+    ctx?: RenderContext
+  ): string {
+    const decided = summary.passed + summary.xpassed + summary.xfailed + summary.failed + summary.error;
+    const rate = decided === 0 ? 0 : (summary.passed + summary.xpassed + summary.xfailed) / decided;
+    const broken = summary.failed + summary.error;
 
     return `
       <div class="summary-section">
@@ -215,22 +230,159 @@ export class HtmlRenderer {
           <span class="summary-label">Test Summary</span>
           ${date ? `<span class="summary-meta">${escapeHtml(date)}</span>` : ''}
         </div>
-        <div class="summary-total">
-          <span class="total-value">${summary.total}</span>
-          <span class="total-label">tests${
-            summary.durationSeconds !== undefined
-              ? ` · ${escapeHtml(formatDuration(summary.durationSeconds))}`
-              : ''
-          }</span>
+
+        <div class="summary-hero">
+          ${HtmlRenderer.renderDonut(rate, broken)}
+          <div class="hero-facts">
+            <div class="hero-total">
+              <span class="hero-value">${summary.total}</span>
+              <span class="hero-label">tests</span>
+            </div>
+            <div class="hero-sub">
+              ${summary.durationSeconds !== undefined
+                ? `<span>${escapeHtml(formatDuration(summary.durationSeconds))}</span>`
+                : ''}
+              ${ctx && ctx.historyBuildCount > 1
+                ? `<span>${ctx.historyBuildCount} builds tracked</span>`
+                : ''}
+            </div>
+          </div>
         </div>
+
+        ${HtmlRenderer.renderDistribution(summary)}
+
         <div class="summary-stats">
-          ${chip('stat-passed', summary.passed, 'passed', true)}
-          ${chip('stat-failed', summary.failed, 'failed', true)}
-          ${chip('stat-error', summary.error, 'error')}
-          ${chip('stat-skipped', summary.skipped, 'skipped')}
-          ${chip('stat-xpass', summary.xpassed, 'xpassed')}
-          ${chip('stat-xfail', summary.xfailed, 'xfailed')}
-          ${chip('stat-rerun', summary.rerun, 'reruns')}
+          ${HtmlRenderer.chip('pass', summary.passed, 'passed', true)}
+          ${HtmlRenderer.chip('fail', summary.failed, 'failed', true)}
+          ${HtmlRenderer.chip('error', summary.error, 'error')}
+          ${HtmlRenderer.chip('skip', summary.skipped, 'skipped')}
+          ${HtmlRenderer.chip('xpass', summary.xpassed, 'xpassed')}
+          ${HtmlRenderer.chip('xfail', summary.xfailed, 'xfailed')}
+          ${HtmlRenderer.chip('rerun', summary.rerun, 'reruns')}
+        </div>
+
+        ${ctx ? HtmlRenderer.renderHistoryChart(ctx) : ''}
+      </div>`;
+  }
+
+  /** One count. Hidden entirely at zero unless it is a headline figure. */
+  private static chip(kind: string, value: number, label: string, always = false): string {
+    if (value === 0 && !always) {
+      return '';
+    }
+    return `<div class="stat stat-${kind}"><span class="stat-value">${value}</span><span class="stat-label">${label}</span></div>`;
+  }
+
+  /**
+   * Pass rate as a ring.
+   *
+   * Drawn with stroke-dasharray on a circle rather than an arc path: the maths
+   * is one multiplication, and it degrades to a plain circle rather than to a
+   * malformed path if anything is off.
+   */
+  private static renderDonut(rate: number, broken: number): string {
+    const radius = 26;
+    const circumference = 2 * Math.PI * radius;
+    const filled = Math.max(0, Math.min(1, rate)) * circumference;
+    const tone = broken === 0 ? 'pass' : rate >= 0.9 ? 'warn' : 'fail';
+
+    return `
+      <div class="donut donut-${tone}" role="img"
+           aria-label="${Math.round(rate * 100)} percent of tests passed">
+        <svg viewBox="0 0 64 64" width="64" height="64">
+          <circle class="donut-track" cx="32" cy="32" r="${radius}" fill="none" stroke-width="7"/>
+          <circle class="donut-value" cx="32" cy="32" r="${radius}" fill="none" stroke-width="7"
+                  stroke-linecap="round" transform="rotate(-90 32 32)"
+                  stroke-dasharray="${filled.toFixed(2)} ${(circumference - filled).toFixed(2)}"/>
+        </svg>
+        <div class="donut-centre">
+          <span class="donut-pct">${Math.round(rate * 100)}<i>%</i></span>
+        </div>
+      </div>`;
+  }
+
+  /**
+   * Every status as one proportional bar.
+   *
+   * Segments below a pixel or so are widened to a visible minimum: a single
+   * failure in seven hundred tests is exactly the thing worth seeing, and at
+   * true scale it would be 0.14% of the width and invisible.
+   */
+  private static renderDistribution(summary: TestSummary): string {
+    const parts: Array<[string, number, string]> = [
+      ['pass', summary.passed, 'passed'],
+      ['xpass', summary.xpassed, 'xpassed'],
+      ['xfail', summary.xfailed, 'xfailed'],
+      ['skip', summary.skipped, 'skipped'],
+      ['error', summary.error, 'error'],
+      ['fail', summary.failed, 'failed'],
+    ].filter((p) => (p[1] as number) > 0) as Array<[string, number, string]>;
+
+    if (parts.length === 0) {
+      return '';
+    }
+    const total = parts.reduce((sum, p) => sum + p[1], 0);
+    const MIN_PERCENT = 2.5;
+    const raw = parts.map((p) => (p[1] / total) * 100);
+    const lifted = raw.map((v) => Math.max(v, MIN_PERCENT));
+    const scale = 100 / lifted.reduce((a, b) => a + b, 0);
+
+    const segments = parts
+      .map(
+        ([kind, count, label], i) =>
+          `<span class="seg seg-${kind}" style="width:${(lifted[i] * scale).toFixed(2)}%"
+                 title="${count} ${label}"></span>`
+      )
+      .join('');
+    return `<div class="distribution" aria-hidden="true">${segments}</div>`;
+  }
+
+  /**
+   * Failures per build, oldest to newest.
+   *
+   * This is the view no single report can give, and the reason the extension
+   * reads the archive at all.
+   *
+   * Bars rather than a pass-rate line: a healthy suite sits between 98% and
+   * 100%, so a rate line is visually flat and spends its whole height on a
+   * band nobody cares about, whereas "how many broke" spikes exactly when
+   * something went wrong. Bars also survive being squashed into a short strip,
+   * which circles on a stretched viewBox do not — they come out as ellipses.
+   */
+  private static renderHistoryChart(ctx: RenderContext): string {
+    const builds = ctx.builds ?? [];
+    if (builds.length < 2) {
+      return '';
+    }
+
+    const counts = builds.map((b) => b.summary.failed + b.summary.error);
+    const worst = Math.max(...counts, 1);
+    const clean = counts.filter((c) => c === 0).length;
+    const latest = counts[counts.length - 1];
+
+    // Percentage widths so the strip fills whatever the panel is; a fixed
+    // pixel bar would either overflow a narrow sidebar or leave a gap.
+    const slot = 100 / counts.length;
+    const bars = counts
+      .map((count, i) => {
+        // A clean build still gets a visible nub, so the row reads as a
+        // timeline of builds rather than as gaps between the bad ones.
+        const height = count === 0 ? 8 : 18 + (count / worst) * 82;
+        const kind = count === 0 ? 'ok' : 'bad';
+        const label = count === 0 ? 'no failures' : `${count} failing`;
+        return `<span class="bar bar-${kind}" style="left:${(i * slot).toFixed(3)}%;width:${slot.toFixed(3)}%;height:${height.toFixed(1)}%" title="${label}"></span>`;
+      })
+      .join('');
+
+    return `
+      <div class="history">
+        <div class="history-head">
+          <span>Failures · last ${counts.length} builds</span>
+          <span class="history-now">${clean}/${counts.length} clean</span>
+        </div>
+        <div class="bars" role="img"
+             aria-label="Failures across the last ${counts.length} builds; most recent has ${latest}">
+          ${bars}
         </div>
       </div>`;
   }
@@ -290,12 +442,18 @@ export class HtmlRenderer {
     if (!trend || trend.length < 2) {
       return '';
     }
+    // A broken test's badge already says 0/N and its trend is N identical red
+    // ticks; drawing them too states the same fact twice.
+    if (ctx.flake?.get(test.archiveKey)?.isBroken) {
+      return '';
+    }
     const dots = trend
       .slice(-12)
       .map((outcome) => `<span class="trend-dot trend-${outcome}"></span>`)
       .join('');
     return `<span class="trend" title="Oldest to newest across ${trend.length} builds">${dots}</span>`;
   }
+
 
   private static renderSwitcher(ctx: RenderContext): string {
     if (ctx.reports.length < 2) {

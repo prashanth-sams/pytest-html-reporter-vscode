@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.1.2] — 2026-09-03
+
+- Readable summary counts. Every figure sat on one uniform badge colour with
+  only the number tinted, which left `1 skipped` grey on grey and gave xPASS
+  and xFAIL no colour at all. Each count now carries its own tinted plate.
+- A pass-rate ring, a proportional status bar, and a failures-per-build chart
+  drawn from the archive — the trend no single report can show.
+- Long test names wrap at word boundaries instead of mid-token.
+- Error snippets sit on a neutral plate with a red edge rather than being solid
+  red blocks, which were unreadable stacked down a list.
+- A broken test no longer shows both a `0/N` badge and a row of identical red
+  trend ticks saying the same thing.
+- `npm run preview` renders the sidebar to standalone HTML for design work
+  without launching an Extension Development Host.
+
 ## [0.1.1] — 2026-09-03
 
 - New icon, matching the reporter's own bar-chart mark. The activity bar

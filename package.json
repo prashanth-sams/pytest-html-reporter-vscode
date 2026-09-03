@@ -2,7 +2,7 @@
   "name": "pytest-html-reporter-vscode",
   "displayName": "Pytest HTML Reporter",
   "description": "View pytest-html-reporter test results in the VS Code sidebar, with failure navigation, error previews, build history and flaky-test detection.",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "publisher": "prashanth-sams",
   "license": "MIT",
   "icon": "resources/icon.png",
@@ -183,7 +183,8 @@
     "compile-tests": "tsc -p . --outDir out",
     "test": "npm run compile-tests && node --test \"out/tests/**/*.test.js\"",
     "lint": "tsc --noEmit",
-    "package": "vsce package"
+    "package": "vsce package",
+    "preview": "npm run compile-tests && node tools/preview.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.20.1",
